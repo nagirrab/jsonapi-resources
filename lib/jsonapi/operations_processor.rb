@@ -16,7 +16,9 @@ module JSONAPI
                                        :create_to_many_relationship_operation,
                                        :replace_to_many_relationship_operation,
                                        :remove_to_many_relationship_operation,
-                                       :remove_to_one_relationship_operation
+                                       :remove_to_one_relationship_operation,
+                                       :custom_collection_action_operation,
+                                       :custom_instance_action_operation
 
     class << self
       def operations_processor_for(operations_processor)

@@ -353,4 +353,71 @@ module JSONAPI
       return JSONAPI::OperationResult.new(result == :completed ? :no_content : :accepted)
     end
   end
+
+  class CustomCollectionActionOperation < Operation
+    attr_reader :data, :action_name
+
+    def initialize(resource_klass, action_name, options = {})
+      super(resource_klass, options)
+      @action_name = action_name
+      @data = options.fetch(:data)
+    end
+
+    def apply
+      action_resource = @resource_klass.custom_action_resource(@action_name).create(@context)
+
+      action_resource.set_fields(@data)
+
+      result = action_resource.custom_collection_action(@action_name)
+
+      if result.is_a?(Array)
+        resources = result.map do |r|
+          @resource_klass.resource_for_model_path(r, @resource_klass.module_path).new(r, @context)
+        end
+        return JSONAPI::ResourcesOperationResult.new(:created, resources)
+      elsif result.present?
+        resource = @resource_klass.resource_for_model_path(result, @resource_klass.module_path).new(result, @context)
+        return JSONAPI::ResourceOperationResult.new(:created, resource)
+      else
+        return JSONAPI::ResourceOperationResult.new(:accepted, nil)
+      end
+
+    rescue JSONAPI::Exceptions::Error => e
+      return JSONAPI::ErrorsOperationResult.new(e.errors[0].code, e.errors)
+    end
+  end
+
+  class CustomInstanceActionOperation < Operation
+    attr_reader :data, :action_name, :id, :include_directives
+
+    def initialize(resource_klass, action_name, options = {})
+      super(resource_klass, options)
+      @action_name = action_name
+      @data = options.fetch(:data)
+      @id = options.fetch(:id)
+      @include_directives = options[:include_directives]
+    end
+
+    def apply
+      key = @resource_klass.verify_key(@id, @context)
+      resource_record = @resource_klass.find_by_key(key,
+                                                      context: @context,
+                                                      include_directives: @include_directives)
+
+      action_resource = @resource_klass.custom_action_resource(@action_name).create(@context)
+      action_resource.set_fields(@data)
+
+      result = action_resource.custom_instance_action(@action_name, resource_record)
+
+      if result.present?
+        resource = @resource_klass.resource_for_model_path(result, @resource_klass.module_path).new(result, @context)
+        return JSONAPI::ResourceOperationResult.new(:ok, resource)
+      else
+        return JSONAPI::ResourceOperationResult.new(:accepted, nil)
+      end
+
+    rescue JSONAPI::Exceptions::Error => e
+      return JSONAPI::ErrorsOperationResult.new(e.errors[0].code, e.errors)
+    end
+  end
 end

@@ -141,6 +141,15 @@ TestApp.routes.draw do
   jsonapi_resources :cars
   jsonapi_resources :boats
   jsonapi_resources :flat_posts
+  jsonapi_resources :accounts do
+    collection do
+      post 'create_with_balance'
+    end
+
+    member do
+      post 'withdraw'
+    end
+  end
 
   namespace :api do
     namespace :v1 do

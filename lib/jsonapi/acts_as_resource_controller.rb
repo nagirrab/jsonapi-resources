@@ -52,8 +52,8 @@ module JSONAPI
       process_request
     end
 
-    def process_request
-      @request = JSONAPI::Request.new(params, context: context,
+    def process_request(param_overrides = {})
+      @request = JSONAPI::Request.new(params.clone.merge!(param_overrides), context: context,
                                       key_formatter: key_formatter,
                                       server_error_callbacks: (self.class.server_error_callbacks || []))
       unless @request.errors.empty?
@@ -210,6 +210,18 @@ module JSONAPI
           end
         end.compact
         @server_error_callbacks += method_callbacks
+      end
+
+      def custom_collection_action(name)
+        define_method(name) do
+          process_request(custom_action_name: name, custom_action_type: "collection")
+        end
+      end
+
+      def custom_instance_action(name)
+        define_method(name) do
+          process_request(custom_action_name: name, custom_action_type: "instance")
+        end
       end
     end
   end

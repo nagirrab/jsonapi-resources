@@ -107,6 +107,27 @@ module JSONAPI
       end
     end
 
+    def set_fields(field_data)
+      _replace_fields(field_data)
+    end
+
+    def custom_instance_action(action_name, instance_resource)
+      _model.model = instance_resource._model
+      if _model.valid?
+        _model.perform
+      else
+        fail JSONAPI::Exceptions::ValidationErrors.new(self)
+      end
+    end
+
+    def custom_collection_action(action_name)
+      if _model.valid?
+        _model.perform
+      else
+        fail JSONAPI::Exceptions::ValidationErrors.new(self)
+      end
+    end
+
     # Override this on a resource instance to override the fetchable keys
     def fetchable_fields
       self.class.fields
@@ -284,6 +305,7 @@ module JSONAPI
         base._attributes = (_attributes || {}).dup
         base._relationships = (_relationships || {}).dup
         base._allowed_filters = (_allowed_filters || Set.new).dup
+        base._custom_actions = (_custom_actions || {}).dup
 
         type = base.name.demodulize.sub(/Resource$/, '').underscore
         base._type = type.pluralize.to_sym
@@ -326,7 +348,7 @@ module JSONAPI
         end
       end
 
-      attr_accessor :_attributes, :_relationships, :_allowed_filters, :_type, :_paginator
+      attr_accessor :_attributes, :_relationships, :_allowed_filters, :_type, :_paginator, :_custom_actions
 
       def create(context)
         new(create_model, context)
@@ -411,6 +433,14 @@ module JSONAPI
 
       def primary_key(key)
         @_primary_key = key.to_sym
+      end
+
+      def custom_action(name, action_klass)
+        @_custom_actions[name] = action_klass
+      end
+
+      def custom_action_resource(name)
+        @_custom_actions[name]
       end
 
       # TODO: remove this after the createable_fields and updateable_fields are phased out
