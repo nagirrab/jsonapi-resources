@@ -112,7 +112,16 @@ module JSONAPI
     end
 
     def custom_instance_action(action_name, instance_resource)
-      _model.model = instance_resource._model
+      if _model.respond_to? :model=
+        _model.model = instance_resource._model
+      else
+        warn "[CUSTOM ACTION WITHOUT MODEL] Model accessor could not be found for #{_model.class}. Make sure there is a model= method"
+      end
+
+      if _model.respond_to? :context=
+        _model.context = @context
+      end
+
       if _model.valid?
         _model.perform
       else
@@ -121,6 +130,10 @@ module JSONAPI
     end
 
     def custom_collection_action(action_name)
+      if _model.respond_to? :context=
+        _model.context = @context
+      end
+
       if _model.valid?
         _model.perform
       else

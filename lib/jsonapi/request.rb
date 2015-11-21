@@ -584,7 +584,6 @@ module JSONAPI
     def verify_permitted_params(params, allowed_fields)
       formatted_allowed_fields = allowed_fields.collect { |field| format_key(field).to_sym }
       params_not_allowed = []
-
       params.each do |key, value|
         case key.to_s
         when 'relationships'
