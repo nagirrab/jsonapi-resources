@@ -128,14 +128,14 @@ module JSONAPI
     def setup_custom_collection_action(params)
       parse_fields(params[:fields])
       parse_include_directives(params[:include])
-      parse_custom_collection_operation(params.require(:data))
+      parse_custom_collection_operation(params[:data])
     end
 
     def setup_custom_instance_action(params)
       parse_fields(params[:fields])
       parse_include_directives(params[:include])
       @id = params[:id]
-      parse_custom_instance_operation(params.require(:data))
+      parse_custom_instance_operation(params[:data])
     end
 
     def parse_modify_relationship_action(params, modification_type)
@@ -394,6 +394,7 @@ module JSONAPI
     end
 
     def parse_custom_collection_operation(data)
+      data ||= {}
       Array.wrap(data).each do |params|
 
         data = parse_params(params, custom_operation_permitted_fields, @resource_klass.custom_action_resource(@custom_action_name))
@@ -409,6 +410,7 @@ module JSONAPI
     end
 
     def parse_custom_instance_operation(data)
+      data ||= {}
       Array.wrap(data).each do |params|
         data = parse_params(params, custom_operation_permitted_fields, @resource_klass.custom_action_resource(@custom_action_name))
         @operations.push JSONAPI::CustomInstanceActionOperation.new(
