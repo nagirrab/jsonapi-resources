@@ -15,6 +15,8 @@ module JSONAPI
                                        :replace_to_many_relationship,
                                        :remove_to_many_relationship,
                                        :remove_to_one_relationship,
+                                       :custom_collection_action,
+                                       :custom_instance_action,
                                        :operation
 
     class << self
@@ -278,6 +280,51 @@ module JSONAPI
       result = resource.remove_to_one_link(relationship_type)
 
       return JSONAPI::OperationResult.new(result == :completed ? :no_content : :accepted)
+    end
+
+    def custom_instance_action
+      context = params[:context]
+      action_name = params[:custom_action_name]
+
+      key = resource_klass.verify_key(params[:id], context)
+
+      resource_record = resource_klass.find_by_key(key,
+                                                   context: context,
+                                                   include_directives: params[:include_directives],
+                                                   fields: params[:fields])
+
+      action_resource = resource_klass.custom_action_resource(action_name).create(context)
+      action_resource.set_fields(params[:data])
+      result = action_resource.custom_instance_action(action_name, resource_record)
+
+      if result.present?
+        resource = resource_klass.resource_for_model(result).new(result, context)
+        return JSONAPI::ResourceOperationResult.new(:ok, resource)
+      else
+        return JSONAPI::ResourceOperationResult.new(:accepted, nil)
+      end
+    end
+
+    def custom_collection_action
+      context = params[:context]
+      action_name = params[:custom_action_name]
+      action_resource = resource_klass.custom_action_resource(action_name).create(context)
+
+      action_resource.set_fields(params[:data])
+
+      result = action_resource.custom_collection_action(action_name)
+
+      if result.is_a?(Array)
+        resources = result.map do |r|
+          @resource_klass.resource_for_model(r).new(r, context)
+        end
+        return JSONAPI::ResourcesOperationResult.new(:created, resources)
+      elsif result.present?
+        resource = @resource_klass.resource_for_model(result).new(result, context)
+        return JSONAPI::ResourceOperationResult.new(:created, resource)
+      else
+        return JSONAPI::ResourceOperationResult.new(:accepted, nil)
+      end
     end
   end
 end

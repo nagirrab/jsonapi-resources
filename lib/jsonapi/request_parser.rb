@@ -5,7 +5,8 @@ module JSONAPI
   class RequestParser
     attr_accessor :fields, :include, :filters, :sort_criteria, :errors, :operations,
                   :resource_klass, :context, :paginator, :source_klass, :source_id,
-                  :include_directives, :params, :warnings, :server_error_callbacks
+                  :include_directives, :params, :warnings, :server_error_callbacks,
+                  :custom_action_name, :custom_action_type
 
     def initialize(params = nil, options = {})
       @params = params
@@ -23,6 +24,8 @@ module JSONAPI
       @paginator = nil
       @id = nil
       @server_error_callbacks = options.fetch(:server_error_callbacks, [])
+      @custom_action_name = params.try(:[], :custom_action_name)
+      @custom_action_type = params.try(:[], :custom_action_type)
 
       setup_action(@params)
     end
@@ -32,7 +35,16 @@ module JSONAPI
 
       @resource_klass ||= Resource.resource_for(params[:controller]) if params[:controller]
 
-      setup_action_method_name = "setup_#{params[:action]}_action"
+      action_name = case params[:custom_action_type]
+        when :instance
+          "custom_instance"
+        when :collection
+          "custom_collection"
+        else
+          params[:action]
+      end
+
+      setup_action_method_name = "setup_#{action_name}_action"
       if respond_to?(setup_action_method_name)
         send(setup_action_method_name, params)
       end
@@ -109,6 +121,18 @@ module JSONAPI
 
     def setup_destroy_relationship_action(params)
       parse_modify_relationship_action(params, :remove)
+    end
+
+    def setup_custom_collection_action(params)
+      parse_fields(params[:fields])
+      parse_include_directives(params[:include])
+      parse_custom_collection_operation(params[:data])
+    end
+
+    def setup_custom_instance_action(params)
+      parse_fields(params[:fields])
+      parse_include_directives(params[:include])
+      parse_custom_instance_operation(params[:data], params[:id])
     end
 
     def parse_modify_relationship_action(params, modification_type)
@@ -371,6 +395,53 @@ module JSONAPI
       @errors.concat(e.errors)
     end
 
+    def parse_custom_collection_operation(data)
+      data ||= {}
+      Array.wrap(data).each do |params|
+
+        data = parse_params(params, custom_operation_permitted_fields, @resource_klass.custom_action_resource(@custom_action_name))
+        @operations.push JSONAPI::Operation.new(:custom_collection_action,
+          @resource_klass,
+          context: @context,
+          data: data,
+          custom_action_name: @custom_action_name
+        )
+      end
+    rescue JSONAPI::Exceptions::Error => e
+      @errors.concat(e.errors)
+    end
+
+    def parse_custom_instance_operation(data, id)
+      data ||= {}
+      Array.wrap(data).each do |params|
+        data = parse_params(params, custom_operation_permitted_fields, @resource_klass.custom_action_resource(@custom_action_name))
+        @operations.push JSONAPI::Operation.new(:custom_instance_action,
+          @resource_klass,
+          context: @context,
+          data: data,
+          id: id,
+          include_directives: @include_directives,
+          custom_action_name: @custom_action_name
+        )
+      end
+    rescue JSONAPI::Exceptions::Error => e
+      @errors.concat(e.errors)
+    end
+
+    def custom_operation_permitted_fields
+      custom_resource_klass = @resource_klass.custom_action_resource(@custom_action_name)
+
+      unless custom_resource_klass
+        warn "[CUSTOM ACTION] Custom action mapping #{@custom_action_name} not found for resource #{@resource_klass}."
+        return []
+      end
+      if custom_resource_klass.respond_to?(:createable_fields)
+        creatable_fields = custom_resource_klass.createable_fields(@context)
+      else
+        creatable_fields = custom_resource_klass.creatable_fields(@context)
+      end
+    end
+
     def verify_type(type)
       if type.nil?
         fail JSONAPI::Exceptions::ParameterMissing.new(:type)
@@ -414,7 +485,8 @@ module JSONAPI
       links_object
     end
 
-    def parse_params(params, allowed_fields)
+    def parse_params(params, allowed_fields, resource_klass=nil)
+      resource_klass ||= @resource_klass
       verify_permitted_params(params, allowed_fields)
 
       checked_attributes = {}
@@ -426,7 +498,7 @@ module JSONAPI
         when 'relationships'
           value.each do |link_key, link_value|
             param = unformat_key(link_key)
-            relationship = @resource_klass._relationship(param)
+            relationship = resource_klass._relationship(param)
 
             if relationship.is_a?(JSONAPI::Relationship::ToOne)
               checked_to_one_relationships[param] = parse_to_one_relationship(link_value, relationship)
@@ -437,11 +509,11 @@ module JSONAPI
             end
           end
         when 'id'
-          checked_attributes['id'] = unformat_value(:id, value)
+          checked_attributes['id'] = unformat_value(:id, value, resource_klass)
         when 'attributes'
           value.each do |key, value|
             param = unformat_key(key)
-            checked_attributes[param] = unformat_value(param, value)
+            checked_attributes[param] = unformat_value(param, value, resource_klass)
           end
         end
       end
@@ -508,8 +580,9 @@ module JSONAPI
       end
     end
 
-    def unformat_value(attribute, value)
-      value_formatter = JSONAPI::ValueFormatter.value_formatter_for(@resource_klass._attribute_options(attribute)[:format])
+    def unformat_value(attribute, value, resource_klass=nil)
+      resource_klass ||= @resource_klass
+      value_formatter = JSONAPI::ValueFormatter.value_formatter_for(resource_klass._attribute_options(attribute)[:format])
       value_formatter.unformat(value)
     end
 

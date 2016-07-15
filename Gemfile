@@ -21,3 +21,5 @@ when 'default'
 else
   gem 'rails', "~> #{version}"
 end
+
+gem 'pry-byebug'
