@@ -232,6 +232,11 @@ ActiveRecord::Schema.define do
     t.string :model
   end
 
+  create_table :accounts, force: true do |t|
+    t.string     :currency_code
+    t.integer    :balance
+  end
+
   # special cases - fields that look like they should be reserved names
   create_table :hrefs, force: true do |t|
     t.string :name
@@ -535,6 +540,32 @@ end
 class WebPage < ActiveRecord::Base
 end
 
+class Account < ActiveRecord::Base
+
+  class CreateWithBalance
+    include ActiveModel::Model
+    attr_accessor :balance
+    validates :balance, numericality: true, presence: true
+
+    def perform
+      Account.create!(currency_code: 'USD', balance: balance)
+    end
+  end
+
+  class Withdraw
+    include ActiveModel::Model
+    attr_accessor :model, :amount
+    validates :amount, numericality: true, presence: true
+    validates_presence_of :model
+
+    def perform
+      model.balance = model.balance - amount.to_i
+      model.save!
+      model
+    end
+  end
+end
+
 module Api
   module V7
     class Client < Customer
@@ -631,6 +662,11 @@ class BoatsController < JSONAPI::ResourceController
 end
 
 class BooksController < JSONAPI::ResourceController
+end
+
+class AccountsController < JSONAPI::ResourceController
+  custom_collection_action :create_with_balance
+  custom_instance_action :withdraw
 end
 
 ### CONTROLLERS
@@ -1212,6 +1248,24 @@ class CustomLinkWithLambda < JSONAPI::Resource
       link_to_external_api: "http://external-api.com/posts/#{ created_at.year }/#{ created_at.month }/#{ created_at.day }-#{ subject.gsub(' ', '-') }"
     }
   end
+end
+
+class AccountResource <JSONAPI::Resource
+  attribute :currency_code
+  attribute :balance
+
+  class CreateWithBalanceResource < JSONAPI::Resource
+    model_name 'Account::CreateWithBalance'
+    attributes :balance
+  end
+
+  class WithdrawResource < JSONAPI::Resource
+    model_name 'Account::Withdraw'
+    attributes :amount
+  end
+
+  custom_action :create_with_balance, CreateWithBalanceResource
+  custom_action :withdraw, WithdrawResource
 end
 
 module Api

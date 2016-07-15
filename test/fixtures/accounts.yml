@@ -1,0 +1,4 @@
+account_1:
+  id: 1
+  currency_code: USD
+  balance: 300

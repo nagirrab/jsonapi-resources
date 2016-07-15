@@ -3473,3 +3473,103 @@ class Api::V7::CategoriesControllerTest < ActionController::TestCase
     $PostProcessorRaisesErrors = false
   end
 end
+
+class AccountsControllerTest < ActionController::TestCase
+  def setup
+    JSONAPI.configuration.json_key_format = :camelized_key
+  end
+
+  def test_custom_collection_bad_request
+    set_content_type_header!
+    post :create_with_balance,
+       params: {
+         data: {
+           attributes: {
+              invalid: 'abc'
+           }
+         }
+       }
+      
+    assert_response :bad_request
+  end
+
+  def test_custom_collection_unprocessable_entity
+    set_content_type_header!
+    post :create_with_balance,
+       params: {
+         data: {
+           attributes: {
+             balance: 'abc'
+           }
+         }
+       }
+      
+    assert_response :unprocessable_entity
+  end
+
+  def test_custom_collection_result
+    set_content_type_header!
+    post :create_with_balance,
+       params: {
+         data: {
+           attributes: {
+             balance: 123,
+           }
+         }
+       }
+      
+
+    assert_response :created
+    assert json_response['data'].is_a?(Hash)
+    assert_equal 123, json_response['data']['attributes']['balance']
+  end
+
+  def test_custom_instance_invalid_data
+    set_content_type_header!
+    post :withdraw,
+       params: {
+         id: 1,
+         data: {
+           attributes: {
+              invalid: 'abc'
+           }
+         }
+       }
+      
+    assert_response :bad_request
+  end
+
+  def test_custom_instance_unprocessable_entity
+    set_content_type_header!
+    post :withdraw,
+       params: {
+         id: 1,
+         data: {
+           attributes: {
+             amount: 'abc'
+           }
+         }
+       }
+      
+    assert_response :unprocessable_entity
+  end
+
+  def test_custom_instance_result
+    set_content_type_header!
+    post :withdraw,
+       params: {
+         id: 1,
+         data: {
+           attributes: {
+             amount: 100,
+           }
+         }
+       }
+      
+
+    assert_response :ok
+    assert json_response['data'].is_a?(Hash)
+    assert_equal 200, json_response['data']['attributes']['balance']
+  end
+    
+end

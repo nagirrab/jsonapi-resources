@@ -275,6 +275,16 @@ TestApp.routes.draw do
   jsonapi_resources :books
   jsonapi_resources :authors
 
+  jsonapi_resources :accounts do
+    collection do
+      post 'create_with_balance'
+    end
+
+    member do
+      post 'withdraw'
+    end
+  end
+
   namespace :api do
     namespace :v1 do
       jsonapi_resources :people
