@@ -150,6 +150,7 @@ module JSONAPI
       source_resource ||= source_klass.find_by_key(source_id, context: context, fields: fields)
 
       related_resources = source_resource.public_send(relationship_type,
+                                                      context: context,
                                                       filters:  filters,
                                                       sort_criteria: sort_criteria,
                                                       paginator: paginator,
@@ -159,7 +160,7 @@ module JSONAPI
           (paginator && paginator.class.requires_record_count) ||
           (JSONAPI.configuration.top_level_meta_include_page_count))
         related_resource_records = source_resource.public_send("records_for_" + relationship_type)
-        records = resource_klass.filter_records(filters, {},
+        records = resource_klass.filter_records(filters, { context: context },
                                                 related_resource_records)
 
         record_count = resource_klass.count_records(records)
